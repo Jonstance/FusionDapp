@@ -60,10 +60,16 @@ export default function Home() {
       
     }
 
-    const claimReward = async (ppid) => {
+    const claim_reward = async (ppid) => {
         console.log({ppid});
+        //  data-toggle="modal" data-target="#exampleModalCenter" onClick={()=>{setModalItem(pool)}}
         let contract = await getContract();
-        let claimreward = await contract.claimReward( ppid );
+        try {
+            let claimreward = await contract.claimReward( ppid );
+        } catch (error) {
+            alert('You have no stake in this pool')
+        }
+
     }
   
     const getPositions = async () => {
@@ -73,7 +79,8 @@ export default function Home() {
         for (let i = 0; i < stakingpools.length; i++) {
             let stakingBalance = await contract.getUserStakingBalance(+stakingpools[i].poolId, account);
             if(stakingBalance > 0) {
-                stakingpools[i].bal = stakingBalance;
+                stakingpools[i].bal = ethers.utils.formatEther(stakingBalance);
+               
                 newArr.push(stakingpools[i])
             }
         }
@@ -228,7 +235,7 @@ export default function Home() {
                         <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
                             <span className="d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center" style={{height: "38px"}}>
                                 <span className="">
-                                    <img  height={'auto'} src="/img/spaceship.png" alt="" />
+                                    <img  height={'auto'} src={item?.image} alt="" />
                                 </span>
                                 <span className="text-white" style={{fontWeight: "700",
                                 fontSize: "1.5rem",
@@ -252,16 +259,16 @@ export default function Home() {
 
                         <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
                             <span className="text-light-grey"> Your Stake</span>
-                            <span> 
+                            <span>
                                 <span className="text-white" style={{
                                 fontWeight: "700",
-                                fontSize: "1.5rem"}}>29,302 {item?.balance} FUSION</span>
+                                fontSize: "1.5rem"}}>{item?.bal} FUSION</span>
                                 <span className="text-light-grey"></span>
                             </span>
                         </div>
 
                         <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
-                            <button className=" claim-reward-btn text-white " onClick={()=>{claimReward(item?.pId)}} >
+                            <button className=" claim-reward-btn text-white " onClick={()=>{claim_reward(item?.poolId)}} >
                                 Claim Reward
                             </button>
                         </div>
@@ -483,7 +490,7 @@ export default function Home() {
                               </div>
   
                               <div className="d-flex flex-wrap  flex-wrap  flex-wrap ">
-                                  <button className="btn flex-grow-1 stake-btn" style={{fontWeight: "800", fontSize: "24px"}}>
+                                  <button className="btn flex-grow-1 stake-btn" style={{fontWeight: "800", fontSize: "24px"}} onClick={()=>{claim_reward(pId)}}>
                                       Claim reward
                                   </button>
                               </div>
