@@ -6,6 +6,9 @@ import Web3Modal from 'web3modal'
 import { connectWallet, disconnect} from "../utility/wallet"
 import useStore from "../utility/store"
 import { useEffect, useState } from "react"
+import stakingpools from '../utility/stakingpools'
+import { Modal } from '../components/modal'
+import { getContract } from '../utility/wallet'
 
 
 
@@ -16,7 +19,60 @@ export default function Home() {
 
     
     const [account , setAccount] = useState();
+    const [modalItem , setModalItem] = useState();
+    const [inputAmt, setAmount] = useState();
+    const [pId, setpoolId] = useState();
+    const [positions, setpositions] = useState();
 
+    const setVals = () => {
+        if(modalItem){
+            console.log({modalItem})
+            setAmount(modalItem.min_deposit);
+            setpoolId(modalItem.poolId);
+            console.log({inputAmt})
+        }
+    }
+
+    useEffect(()=>{
+        setVals();
+        if(account){
+            getPositions();
+        }
+        
+    })
+
+    const stake = async ( ) => {
+        
+        let amount = document.getElementById("amtInput").value;
+        
+        if(amount < inputAmt){
+            alert(`Input Min of ${inputAmt}`);
+            return;
+        }
+        console.log({amount, pId})
+        let contract = await getContract();
+        let stake = await contract.stake( amount, pId  );
+    }
+
+    const claimReward = async () => {
+        let contract = await getContract();
+        let claimreward = await contract.claimReward( pId );
+    }
+  
+    const getPositions = async () => {
+        let contract = await getContract();
+        let i;
+        let newArr = [];
+        for (let i = 0; i < stakingpools.length; i++) {
+            let stakingBalance = await contract.getUserStakingBalance();
+            if(stakingBalance > 0) {
+                newArr.push(stakingpools[i])
+            }
+        }
+
+        setpositions(newArr)
+    }
+  
     const connectWall = async () =>{
         let wallet =  await connectWallet();
         if(wallet){
@@ -24,7 +80,13 @@ export default function Home() {
         }
     }
 
-    const disconnectWallet= async () =>{
+    const setModal = useStore( state => state.setModalData )
+    // const openModal = () => {
+    //     var myModalEl = document.querySelector('#exampleModalCenter')
+    //     var modal = bootstrap.Modal.getOrCreateInstance(myModalEl)
+    // }
+
+    const disconnectWallet = async () =>{
         disconnect();
         setAccount()
     }
@@ -69,7 +131,7 @@ export default function Home() {
                 </ul>
                   
                   <button className="mr-sm-2 mr-lg-0 mr-md-0 connectWallet" onClick={()=>{ !account ? connectWall() :  disconnectWallet()}}>
-                      Connect Wallet 
+                     { !account ? "Connect Wallet" : account.substring(0, 7)}
                   </button>
               </div>
   
@@ -149,51 +211,55 @@ export default function Home() {
                   </div>
   
                   <p style={{color: "#AFBED0", marginBottom: "16px"}}>Your Positions</p>
-  
-                  <div className="claim-reward position-wrapper d-flex flex-wrap  flex-wrap  flex-wrap  justify-content-between">
-                      
-                      <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
-                          <span className="d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center" style={{height: "38px"}}>
-                              <span className="">
-                                  <img  height={'auto'} src="/img/spaceship.png" alt="" />
-                              </span>
-                              <span className="text-white" style={{fontWeight: "700",
-                              fontSize: "1.5rem",
-                              margin: "0 10px"
-                              }}>
-                                  Silver Fusion
-                              </span>
-                              <span>
-                                  <img  height={'auto'} src="/img/open.png" alt="" />
-                              </span> 
-                          </span>
-                          <p className="text-light-grey">Duration: 21 July 2022 - 30 August 2022</p>
-                      </div>
-  
-                      <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
-                          <span className="text-light-grey"> Return on Investment</span>
-                          <span style={{color: "rgba(81, 235, 180, 1)",
-                          fontWeight: "700",
-                          fontSize: "1.5rem"}}> 70%</span>
-                      </div>
-  
-                      <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
-                          <span className="text-light-grey"> Your Stake</span>
-                          <span> 
-                              <span className="text-white" style={{
-                              fontWeight: "700",
-                              fontSize: "1.5rem"}}>29,302 FUSION</span>
-                              <span className="text-light-grey">$9201</span>
-                          </span>
-                      </div>
-  
-                      <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
-                          <button className=" claim-reward-btn text-white ">
-                              Claim Reward
-                          </button>
-                      </div>
-  
-                  </div>
+                    { !positions ? "" : (
+
+                        <div className="claim-reward position-wrapper d-flex flex-wrap  flex-wrap  flex-wrap  justify-content-between">
+                                            
+                        <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
+                            <span className="d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center" style={{height: "38px"}}>
+                                <span className="">
+                                    <img  height={'auto'} src="/img/spaceship.png" alt="" />
+                                </span>
+                                <span className="text-white" style={{fontWeight: "700",
+                                fontSize: "1.5rem",
+                                margin: "0 10px"
+                                }}>
+                                    Silver Fusion
+                                </span>
+                                <span>
+                                    <img  height={'auto'} src="/img/open.png" alt="" />
+                                </span> 
+                            </span>
+                            <p className="text-light-grey">Duration: 21 July 2022 - 30 August 2022</p>
+                        </div>
+
+                        <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
+                            <span className="text-light-grey"> Return on Investment</span>
+                            <span style={{color: "rgba(81, 235, 180, 1)",
+                            fontWeight: "700",
+                            fontSize: "1.5rem"}}> 70%</span>
+                        </div>
+
+                        <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
+                            <span className="text-light-grey"> Your Stake</span>
+                            <span> 
+                                <span className="text-white" style={{
+                                fontWeight: "700",
+                                fontSize: "1.5rem"}}>29,302 FUSION</span>
+                                <span className="text-light-grey">$9201</span>
+                            </span>
+                        </div>
+
+                        <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
+                            <button className=" claim-reward-btn text-white ">
+                                Claim Reward
+                            </button>
+                        </div>
+
+                        </div>
+
+                    )}
+
               </div>
               
           </section>
@@ -215,108 +281,47 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody>
-                          
-                        <tr >
+                          {
+                            stakingpools.map(pool  => {
+                            return(
+
+                                <tr >
                           <td>
                               <span className="d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center ">
-                                  <span style={{marginRight: "16px"}}><img height={'auto'}  src="/img/silver.png" alt="" /> </span>
-                                  <span>Silver Fusion</span>
+                                  <span style={{marginRight: "16px"}}><img height={'auto'}  src={pool?.image} alt="" /> </span>
+                                  <span>{pool?.name}</span>
                               </span>
                           </td>
                           <td> 
-                              <span>30 Days</span> 
+                              <span>{pool?.duration} Days</span> 
                           </td>
                           <td>
-                              <span>70%</span>
+                              <span>{pool?.roi}</span>
                           </td>
                           <td>
-                              <span>$1000 (20,000 FUSION)</span>
+                              <span>{pool?.min_deposit} (FUSION)</span>
                           </td>
                           <td>
                               
-                              <button className="stake-btn"  data-toggle="modal" data-target="#exampleModalCenter"> Stake </button>
+                              <button className="stake-btn"  data-toggle="modal" data-target="#exampleModalCenter" onClick={()=>{setModalItem(pool)}} > Stake </button>
                              
                           </td>
                         </tr>
                         
   
-                        <tr>
-                          <td>
-                              <span className="d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center ">
-                                  <span  style={{marginRight: "16px"}}> <img height={'auto'}  src="/img/gold.png" alt="" /> </span>
-                                  <span>Gold Fusion</span>
-                              </span>
-                          </td>
-                          <td> 
-                              <span >60 Days</span> 
-                          </td>
-                          <td>
-                              <span>90%</span>
-                          </td>
-                          <td>
-                              <span>$3000 (60,000 FUSION)</span>
-                          </td>
-                          <td> 
-                              <button className="stake-btn"  data-toggle="modal" data-target="#exampleModalCenter"> Stake </button>
-  
-                          </td>
-                        </tr>
+                            )
+                        })
+                          }
                         
-  
-                        <tr>
-                          <td>
-                              <span className="d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center ">
-                                  <span  style={{marginRight: "16px"}}> <img height={'auto'}  src="/img/blue.png" alt="" /> </span>
-                                  <span>Platinum Fusion</span>
-                              </span>
-                          </td>
-                          <td> 
-                              <span>90 Days</span> 
-                          </td>
-                          <td>
-                              <span>120%</span>
-                          </td>
-                          <td>
-                              <span>$5000 (100,000 FUSION)</span>
-                          </td>
-                          <td>
-                              
-                              <button className="stake-btn"  data-toggle="modal" data-target="#exampleModalCenter"> Stake </button>
-                             
-                          </td>
-                        </tr>
-                        
-  
-                        <tr>
-                          <td>
-                              <span className="d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center ">
-                                  <span  style={{marginRight: "16px"}}> <img  height={'auto'} src="/img/pink.png" alt="" /> </span>
-                                  <span>Mithril Fusion</span>
-                              </span>
-                          </td>
-                          <td> 
-                              <span>120 Days</span> 
-                          </td>
-                          <td>
-                              <span>50%</span>
-                          </td>
-                          <td>
-                              <span>$10000 (200,000 FUSION)</span>
-                          </td>
-                          <td>
-                              
-                              <button className="stake-btn"  data-toggle="modal" data-target="#exampleModalCenter"> Stake </button>
-                             
-                          </td>
-                        </tr>
-                        
+                       
                       </tbody>
                     </table>
               </div>
           </section>
-  
+        {/* MODAL SECTION  */}
 
-          <div className="modal fade" id="exampleModalCenter" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+
+        <div className="modal fade" id="exampleModalCenter" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
               <div className="modal-dialog modal-dialog-centered" role="document">
               <div className="modal-content">
                   <div className="modal-header">
@@ -349,16 +354,26 @@ export default function Home() {
                                   </span>
                               </div>
   
-                              <div className="d-flex flex-wrap  flex-wrap  flex-wrap  justify-content-between" style={{
+                              <div className="d-flex flex-wrap  flex-wrap  flex-wrap  justify-content-between align-items-center" style={{
                               background: "#0E1725",
                               borderRadius: "8px",
-                              padding: "28.5px",
+                              padding: "0 28.5px",
                               fontWeight: "700",
                               fontSize: "1.8rem",
                               marginBottom: "32px"
                               }}>
-                                  <span >20,000 <small>($1000)</small></span>
-                                  <span >FSN</span>
+                                  {/* <span >20,000 <small>($1000)</small></span> */}
+                                  <input type="text" id="amtInput" placeholder={`Min ${inputAmt}`} style={{
+                                    background: "#0E1725",
+                                    borderRadius: "8px",
+                                    padding: "28.5px",
+                                    fontWeight: "700",
+                                    fontSize: "1.8rem",
+                                    border: "none",
+                                    outline: "none",
+                                    color: "#FFF"
+                                  }} />
+                                  <span >FSN {inputAmt}</span>
                               </div>
   
                               <div className="staking-category d-flec flex-column" style={{padding: "20px", background: "#0E1725", borderRadius: "9.75964px", marginBottom: "32px"}}>
@@ -403,7 +418,9 @@ export default function Home() {
                                   </div>
                               </div>
                               <div className="d-flex flex-wrap  flex-wrap ">
-                                  <button className="btn flex-grow-1 stake-btn" style={{fontWeight: "800", fontSize: "24px"}}>
+                                  <button className="btn flex-grow-1 stake-btn" style={{fontWeight: "800", fontSize: "24px"}} onClick={()=>{
+                                    stake();
+                                  }}>
                                       Stake
                                   </button>
                               </div>

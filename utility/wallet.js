@@ -1,10 +1,13 @@
 //import WalletConnectProvider from '@walletconnect/web3-provider'
 import { ethers, providers  } from "ethers";
 import Web3Modal from "web3modal";
+import contractABI from './FusionStaking.json'
+
+
 //import CoinbaseWalletSDK from '@coinbase/wallet-sdk';
 
 //const INFURA_ID = '460f40a260564ac4a4f4b3fffb032dad'; //replace ID with yours
-
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
 const providerOptions = {
     
      // walletconnect: {
@@ -45,4 +48,14 @@ export const connectWallet = async () => {
  
 }
 
-export default { connectWallet, disconnect };
+
+export const getContract = async ()=> {
+  const instance = await web3Modal.connect();
+  const provider = new ethers.providers.Web3Provider(instance);
+  const signer = provider.getSigner();
+  const staking = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+  return staking;
+}
+
+
+export default { connectWallet, disconnect, getContract };
