@@ -1,7 +1,8 @@
 //import WalletConnectProvider from '@walletconnect/web3-provider'
 import { ethers, providers  } from "ethers";
 import Web3Modal from "web3modal";
-import contractABI from './FusionStaking.json'
+import * as contractABI from './FusionStaking.json'
+import * as tokenABI from './testToken.json'
 
 
 //import CoinbaseWalletSDK from '@coinbase/wallet-sdk';
@@ -53,9 +54,22 @@ export const getContract = async ()=> {
   const instance = await web3Modal.connect();
   const provider = new ethers.providers.Web3Provider(instance);
   const signer = provider.getSigner();
-  const staking = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+  const staking = new ethers.Contract("0x2189049962f3808216932403974307451606947B", contractABI.abi, signer);
   return staking;
 }
 
+export const getTokenContract = async () => {
+  const instance = await web3Modal.connect();
+  const provider = new ethers.providers.Web3Provider(instance);
+  const signer = provider.getSigner();
+  const tokencontract = new ethers.Contract("0x82282A97D0EF41e0631046273C187Eb7AE7742B9", tokenABI.abi, signer);
+  return tokencontract;
+}
 
-export default { connectWallet, disconnect, getContract };
+export const convertToWei = (val) => {
+  let res = ethers.utils.parseEther(val);
+  return res;
+}
+
+
+export default { connectWallet, disconnect, getContract, getTokenContract, convertToWei };

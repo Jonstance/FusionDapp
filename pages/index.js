@@ -8,7 +8,7 @@ import useStore from "../utility/store"
 import { useEffect, useState } from "react"
 import stakingpools from '../utility/stakingpools'
 import { Modal } from '../components/modal'
-import { getContract } from '../utility/wallet'
+import { getContract, getTokenContract, convertToWei } from '../utility/wallet'
 
 
 
@@ -25,11 +25,9 @@ export default function Home() {
     const [positions, setpositions] = useState();
 
     const setVals = () => {
-        if(modalItem){
-            console.log({modalItem})
+        if(modalItem){           
             setAmount(modalItem.min_deposit);
             setpoolId(modalItem.poolId);
-            console.log({inputAmt})
         }
     }
 
@@ -49,14 +47,23 @@ export default function Home() {
             alert(`Input Min of ${inputAmt}`);
             return;
         }
+
+        amount = convertToWei(amount);
         console.log({amount, pId})
+
         let contract = await getContract();
-        let stake = await contract.stake( amount, pId  );
+        let token = await getTokenContract();
+        let approve = await token.approve( "0x2189049962f3808216932403974307451606947B", amount );
+        if(approve){
+         let stake = await contract.stake( amount, pId  );
+        }
+      
     }
 
-    const claimReward = async () => {
+    const claimReward = async (ppid) => {
+        console.log({ppid});
         let contract = await getContract();
-        let claimreward = await contract.claimReward( pId );
+        let claimreward = await contract.claimReward( ppid );
     }
   
     const getPositions = async () => {
@@ -64,8 +71,9 @@ export default function Home() {
         let i;
         let newArr = [];
         for (let i = 0; i < stakingpools.length; i++) {
-            let stakingBalance = await contract.getUserStakingBalance();
+            let stakingBalance = await contract.getUserStakingBalance(+stakingpools[i].poolId, account);
             if(stakingBalance > 0) {
+                stakingpools[i].bal = stakingBalance;
                 newArr.push(stakingpools[i])
             }
         }
@@ -213,7 +221,9 @@ export default function Home() {
                   <p style={{color: "#AFBED0", marginBottom: "16px"}}>Your Positions</p>
                     { !positions ? "" : (
 
-                        <div className="claim-reward position-wrapper d-flex flex-wrap  flex-wrap  flex-wrap  justify-content-between">
+                       positions.map(item => {
+                        return (
+                            <div className="claim-reward position-wrapper d-flex flex-wrap  flex-wrap  flex-wrap  justify-content-between">
                                             
                         <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
                             <span className="d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center" style={{height: "38px"}}>
@@ -224,7 +234,7 @@ export default function Home() {
                                 fontSize: "1.5rem",
                                 margin: "0 10px"
                                 }}>
-                                    Silver Fusion
+                                    {item?.name}
                                 </span>
                                 <span>
                                     <img  height={'auto'} src="/img/open.png" alt="" />
@@ -237,7 +247,7 @@ export default function Home() {
                             <span className="text-light-grey"> Return on Investment</span>
                             <span style={{color: "rgba(81, 235, 180, 1)",
                             fontWeight: "700",
-                            fontSize: "1.5rem"}}> 70%</span>
+                            fontSize: "1.5rem"}}> {item?.roi}</span>
                         </div>
 
                         <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
@@ -245,19 +255,21 @@ export default function Home() {
                             <span> 
                                 <span className="text-white" style={{
                                 fontWeight: "700",
-                                fontSize: "1.5rem"}}>29,302 FUSION</span>
-                                <span className="text-light-grey">$9201</span>
+                                fontSize: "1.5rem"}}>29,302 {item?.balance} FUSION</span>
+                                <span className="text-light-grey"></span>
                             </span>
                         </div>
 
                         <div className="d-flex flex-wrap  flex-wrap  flex-wrap  flex-column">
-                            <button className=" claim-reward-btn text-white ">
+                            <button className=" claim-reward-btn text-white " onClick={()=>{claimReward(item?.pId)}} >
                                 Claim Reward
                             </button>
                         </div>
 
                         </div>
 
+                        )
+                       } )
                     )}
 
               </div>
@@ -373,7 +385,7 @@ export default function Home() {
                                     outline: "none",
                                     color: "#FFF"
                                   }} />
-                                  <span >FSN {inputAmt}</span>
+                                  <span >FSN</span>
                               </div>
   
                               <div className="staking-category d-flec flex-column" style={{padding: "20px", background: "#0E1725", borderRadius: "9.75964px", marginBottom: "32px"}}>
