@@ -30,12 +30,16 @@ contract FusionStaking is Ownable{
     uint poolIndex;
     uint[] public poolIndexArray;
 
+    uint public rewardIntervalInDays;
+
     constructor(address _stakingToken, address _rewardsToken, address administratorAddress, address _feeReceiver) {
         stakingToken = IERC20(_stakingToken);
         rewardsToken = IERC20(_rewardsToken);
         _transferOwnership(administratorAddress);
         feeReceiver = _feeReceiver;
         poolIndex = 0;
+
+        rewardIntervalInDays = 365 days;
     }
 
     function createPool(
@@ -44,6 +48,7 @@ contract FusionStaking is Ownable{
         uint _APY,
         uint _minimumDeposit
     ) external onlyOwner returns(uint _createdPoolIndex){
+        require(_APY > 0 && _APY < 1000, "APY can only be between 1% and 1000%");
 
         pool[poolIndex].poolName = _poolName;
         pool[poolIndex].stakingDuration = _stakingDuration;
@@ -95,7 +100,18 @@ contract FusionStaking is Ownable{
 
             uint userStake_wei = pool[poolID].userStakedBalance[userAddress];
             uint userStake_notWei = userStake_wei / 1e6; //remove SIX zeroes.
-            uint userReward_inWei = userStake_notWei * pool[poolID].APY * ((periodSpentStaking * 1e4) / 365 days); // reward period is yearly
+
+            uint userReward_inWei; //= userStake_notWei * pool[poolID].APY * ((periodSpentStaking * 1e4) / 365 days); // reward period is yearly
+
+            if(pool[poolID].APY > 0 && pool[poolID].APY <= 9){
+                userReward_inWei = userStake_notWei * pool[poolID].APY * ((periodSpentStaking * 1e5) / rewardIntervalInDays);
+            }
+            else if(pool[poolID].APY >= 10 && pool[poolID].APY <= 99){
+                userReward_inWei = userStake_notWei * pool[poolID].APY * ((periodSpentStaking * 1e4) / rewardIntervalInDays);
+            }
+            else if(pool[poolID].APY >= 100 && pool[poolID].APY <= 999){
+                userReward_inWei = userStake_notWei * pool[poolID].APY * ((periodSpentStaking * 1e3) / rewardIntervalInDays);
+            }
 
             return userReward_inWei;
         }else{
@@ -152,6 +168,10 @@ contract FusionStaking is Ownable{
         }
     }
 
+    function setRewardInterval(uint _interval) public onlyOwner {
+        rewardIntervalInDays = (_interval * 1 days);
+    }
+
     function togglePausePool(uint _poolID) external onlyOwner{
         pool[_poolID].stakingIsPaused = !pool[_poolID].stakingIsPaused;
 
@@ -184,5 +204,7 @@ contract FusionStaking is Ownable{
         return pool[poolID].userStakedBalance[userAddress];
     }
 
-
+    function getLastStakeDate(uint poolID, address userAddress) public view returns (uint){
+        return pool[poolID].lastTimeUserStaked[userAddress];
+    }
 }
