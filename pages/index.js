@@ -10,7 +10,7 @@ import useStore from "../utility/store"
 import { useEffect, useState } from "react"
 import stakingpools from '../utility/stakingpools'
 import { Modal } from '../components/modal'
-import { getContract, getTokenContract, convertToWei, getWalletBalance, convertToEther, CONTRACT_ADDRESS } from '../utility/wallet'
+import { getContract,switchNetwork, listenForChain, getTokenContract, convertToWei, getWalletBalance, convertToEther, CONTRACT_ADDRESS } from '../utility/wallet'
 
 
 
@@ -29,7 +29,11 @@ export default function Home() {
     const [userBalance, setUserBalance] = useState();
     const [totalStaked, setTotalStaked] = useState();
     const [totalStakeHolders, setTotalStakeHolders] = useState();
-
+    const [siteMessage, setSiteMessage] = useState();
+    const [rightNet, setRightNet] = useState(false);
+    const CHAIN_ID = process.env.NEXT_PUBLIC_CHAIN_ID;
+    const setModal = useStore( state => state.setModalData )
+    
     const setVals = async () => {
         if(modalItem){           
             setAmount(modalItem.min_deposit);
@@ -49,20 +53,43 @@ export default function Home() {
          setUserBalance(bal);
     }
 
-    useEffect(()=>{
-        setVals();
-        getTotalstkd();
-
+    useEffect( ()=>{
+        
         if(account){
-            getPositions();
-            setBal();
+            switchNetwork();
+            if (!checknetwork(false)) {
+                toast.error(`WRONG NETWORK! Please switch to ${ process.env.NEXT_PUBLIC_NETWORK_NAME}`)
+                console.log(siteMessage);
+            }else{
+                setRightNet(true)
+            }
+        }
+    },[])
+
+    useEffect(()=>{
+        if (!checknetwork()) {
+            setRightNet(false);
+         }else{
+            setRightNet(true)
+         }
+    })
+
+    useEffect( ()=>{
+        if(account && rightNet){
+            getPositions();               
+            setBal();   
+            setVals();
+            getTotalstkd();
+
         }
 
-        (async () => {
-            if(localStorage.getItem("WEB3_CONNECT_CACHED_PROVIDER")) await connectWall();
-         })()
-        
+        //  (async () => {
+        //     if(localStorage.getItem("WEB3_CONNECT_CACHED_PROVIDER")) await connectWall();
+        // })()
+       
     })
+
+
 
     function getRPCErrorMessage(err){
         var open = err.stack.indexOf('{')
@@ -146,6 +173,10 @@ export default function Home() {
     }
   
     const getPositions = async () => {
+        // if(!checknetwork()){
+        //     return;
+        // }
+
         let contract = await getContract();
         let i;
         let newArr = [];
@@ -173,17 +204,50 @@ export default function Home() {
 
         setpositions(newArr)
     }
+
+    const checknetwork = (istoast=true) => {
+        if (typeof window !== "undefined") {
+            if (!window.ethereum?.networkVersion) {
+                return;
+            }
+            if (+window.ethereum?.networkVersion !== +CHAIN_ID) {
+                console.log('enters',window.ethereum?.networkVersion , CHAIN_ID)
+                console.log(window.ethereum.networkVersion)
+                console.log( CHAIN_ID)
+                    if (+CHAIN_ID == 56) {
+                        if(istoast){
+                              toast.info("Please switch network to BSC mainet ");
+                        }
+                      
+                    }
+
+                    if(+CHAIN_ID == 97){
+                        if (istoast) {
+                            toast.info("Please switch network to BSC Testnet ");
+                        }
+                        
+                    }
+                return false;
+            }
+
+            return true;
+         }
+    }
   
     const connectWall = async () =>{
-
+        //  if (!checknetwork()) {
+        //     return;
+        //  }
+        disconnectWallet();
          let wallet =  await connectWallet();
             if(wallet){
             setAccount(wallet[0]);
+            toast.success('connected!')
             }  
 
     }
 
-    const setModal = useStore( state => state.setModalData )
+   
 
     const disconnectWallet = async () =>{
         disconnect();
@@ -200,12 +264,13 @@ export default function Home() {
   return (<>
       <header>
       <ToastContainer />
+      {!siteMessage? "" : (<div className='d-flex justify-contents-center align-items-center' style={{display: "flex", background: "orange", padding: "20px"}}><b>{siteMessage}</b></div>)}
           <nav className="navbar navbar-expand-lg  navbar-dark">
               <a  className="navbar-brand" href="#">
                   <div>
-                      <span className="flogo">
+                      {/* <span className="flogo">
                           <img height={'auto'}  src="/img/Vector.png" alt="" />
-                      </span>
+                      </span> */}
                       <span className="logotext" >
                           <img height={'auto'}  src="/img/FUSION PROTOCOL.png" alt="" /> 
                       </span>  
@@ -584,7 +649,8 @@ export default function Home() {
   
                               <div key={`bal`+index} className="d-flex flex-wrap  flex-wrap  flex-wrap " style={{marginBottom: "32px", fontWeight: "700",
                               fontSize: "36px", background: "#0E1725", borderRadius: "8px", padding: "28px"}}>
-                                  <span className="text-white">{val?.reward_bal * 1} FSN</span>
+                                <img src='/img/logo.png' />
+                                  <span className="text-white" style={{marginLeft: "16px"}}>{val?.reward_bal * 1} FSN</span>
                               </div>
     
                               <div key={`warn`+index} className="notice d-flex " style={{background: "#0E1725", borderRadius: "8px" ,marginBottom: "32px", padding: "18px 33px"}}>
