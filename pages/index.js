@@ -2,6 +2,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import styles from '../styles/Home.module.css'
 import { ethers } from 'ethers'
+import Web3 from "web3";
 import Web3Modal from 'web3modal'
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -9,8 +10,10 @@ import { connectWallet, disconnect} from "../utility/wallet"
 import useStore from "../utility/store"
 import { useEffect, useState } from "react"
 import stakingpools from '../utility/stakingpools'
+import ConnectModal from '../components/ConnectModal'
 import { Modal } from '../components/modal'
-import { getContract,switchNetwork, listenForChain, getTokenContract, convertToWei, getWalletBalance, convertToEther, CONTRACT_ADDRESS } from '../utility/wallet'
+import { useRouter } from 'next/router'
+import { connectToMetaMask, connectWithWalletConnect , getContract,switchNetwork, checkNetwork, listenForChain, getTokenContract, convertToWei, getWalletBalance, convertToEther, CONTRACT_ADDRESS } from '../utility/wallet'
 
 
 
@@ -31,9 +34,19 @@ export default function Home() {
     const [totalStakeHolders, setTotalStakeHolders] = useState();
     const [siteMessage, setSiteMessage] = useState();
     const [rightNet, setRightNet] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const router = useRouter();
+
     const CHAIN_ID = process.env.NEXT_PUBLIC_CHAIN_ID;
     const setModal = useStore( state => state.setModalData )
-    
+    const walletAccount = useStore((state) => state.WalletAccount);
+    const setDisplayModalTrue = useStore((state) => state.setDisplayModalTrue);
+    const displayModal = useStore((state) => state.displayModal);
+    const setWalletAccount = useStore((state) => state.setWalletAccount);
+    const blurV = useStore((state) => state.blurV);
+    const providerInsatnce = useStore((state) => state.providerInsatnce);
+    const setProvInstance = useStore((state) => state.setProvInstance);
+
     const setVals = async () => {
         if(modalItem){           
             setAmount(modalItem.min_deposit);
@@ -42,51 +55,76 @@ export default function Home() {
         
     }
     const getTotalstkd = async () =>{
-        let contract = await getContract();
-        let totalStkd = await contract.getTotalStaked();
-        let holders = await contract.getTotalStakeHolderCount();
-        setTotalStaked(convertToEther(totalStkd));
+        let contract = await getContract(providerInsatnce);
+        let totalStkd = await contract.methods.getTotalStaked().call();
+        let holders = await contract.methods.getTotalStakeHolderCount().call();
+        setTotalStaked(await convertToEther(totalStkd));
         setTotalStakeHolders(holders);
     }
     const setBal = async () => {
-        let bal = await getWalletBalance();
+        let bal = await getWalletBalance(walletAccount, providerInsatnce);
+        // console.log({bal})
+        // console.log(bal);
          setUserBalance(bal);
     }
 
-    useEffect( ()=>{
+    const reconWallet = async () =>{
+            try {
+                const { ethereum } = window;
+                let acc;
+                if (!ethereum) {
+                    acc = await connectWithWalletConnect();
+                    setWalletAccount(acc.account);
+                    setProvInstance(acc.prov)
+                    console.log(acc.prov)
+                }else{
+                    acc = await connectToMetaMask();
+                    setWalletAccount(acc.account);
+                    setProvInstance(acc.prov)
+                    console.log(acc.prov)
+                }
+            }catch(error){
+                console.log(error.message)
+            } 
+    }
+
+
+    useEffect(()=>{
         
-        if(account){
-            switchNetwork();
-            if (!checknetwork(false)) {
+        if(walletAccount){
+            // switchNetwork();
+            if (!checkNetwork(providerInsatnce, false)) {
                 toast.error(`WRONG NETWORK! Please switch to ${ process.env.NEXT_PUBLIC_NETWORK_NAME}`)
                 console.log(siteMessage);
             }else{
                 setRightNet(true)
             }
-        }
+        }  
     },[])
 
+
     useEffect(()=>{
-        if (!checknetwork()) {
-            setRightNet(false);
-         }else{
-            setRightNet(true)
-         }
+        if(walletAccount){
+            if (!checkNetwork(providerInsatnce, false)) {
+                setRightNet(false);
+            }else{
+                setRightNet(true)
+            }
+        }
     })
 
     useEffect( ()=>{
-        if(account && rightNet){
+        if(walletAccount && rightNet){
             getPositions();               
             setBal();   
             setVals();
             getTotalstkd();
-
         }
-
-        //  (async () => {
-        //     if(localStorage.getItem("WEB3_CONNECT_CACHED_PROVIDER")) await connectWall();
-        // })()
-       
+        if(!walletAccount){
+            (async () => {
+                if(localStorage.getItem('walletConnected')) await reconWallet();
+            })()
+        }
     })
 
 
@@ -104,7 +142,7 @@ export default function Home() {
     const stake = async ( ) => {
         
         let amount = document.getElementById("amtInput").value;
-        if (!account) {
+        if (!walletAccount) {
             toast.info(`Please connect wallet`)
             // alert();
             return;
@@ -125,16 +163,23 @@ export default function Home() {
         amount = await convertToWei(amount);
         console.log({amount, pId})
 
-        let contract = await getContract();
-        let token = await getTokenContract();
+        let contract = await getContract(providerInsatnce);
+        let token = await getTokenContract(providerInsatnce);
         try {
-            let approve = await token.approve( CONTRACT_ADDRESS, amount ).then( async res => {
+            setLoading(true);
+            let approve = await token.methods.approve( CONTRACT_ADDRESS, amount ).send({from: walletAccount}).then( async res => {
                 if(res){
-                let stake = await contract.stake( amount, pId  );
+                let stake = await contract.methods.stake( amount, pId  ).send({from: walletAccount,  gasLimit: 300000});
+     
                 }
             });
+            setLoading(false);
+            toast.success(`Staked!`);
+            $('#exampleModal').modal('hide');
+            getPositions();
 
         } catch (error) {
+            console.log(error)
             toast.error(error.message)
         }
       
@@ -143,11 +188,11 @@ export default function Home() {
     const claim_reward = async (ppid) => {
         console.log({ppid});
         //  data-toggle="modal" data-target="#exampleModalCenter" onClick={()=>{setModalItem(pool)}}
-        let contract = await getContract();
+        let contract = await getContract(providerInsatnce);
         try {
-            let claimreward = await contract.claimReward( ppid );
+            let claimreward = await contract.methods.claimReward( ppid ).send({from: walletAccount,  gasLimit: 300000});
         } catch (error) {
-            toast.error(error.mesage)
+            // toast.error(error.mesage)
             // alert(error)
             // alert('You have no stake in this pool')
         }
@@ -177,27 +222,27 @@ export default function Home() {
         //     return;
         // }
 
-        let contract = await getContract();
+        let contract = await getContract(providerInsatnce);
         let i;
         let newArr = [];
         
         for (let i = 0; i < stakingpools.length; i++) {
             try {
-                 let stakingBalance = await contract.getUserStakingBalance(+stakingpools[i].poolId, account);
+                 let stakingBalance = await contract.methods.getUserStakingBalance(+stakingpools[i].poolId, walletAccount).call();
                 if(stakingBalance > 0) {
                     stakingpools[i].bal = ethers.utils.formatEther(stakingBalance);
-                    let reward_bal = await contract.calculateUserRewards(account, stakingpools[i].poolId);
-                    let stakeTime = await contract.getLastStakeDate( stakingpools[i].poolId,account);
+                    let reward_bal = await contract.methods.calculateUserRewards(walletAccount, stakingpools[i].poolId).call();
+                    let stakeTime = await contract.methods.getLastStakeDate( stakingpools[i].poolId,walletAccount).call();
                     stakeTime = stakeTime.toString();
                     let startDate = formatDate(+stakeTime);
                     let endDate =  formatDate(+stakeTime, +stakingpools[i].duration);
                     stakingpools[i].date = startDate + " - " + endDate;
                     stakingpools[i].end_date = endDate;
-                    stakingpools[i].reward_bal = convertToEther(reward_bal);
+                    stakingpools[i].reward_bal = await convertToEther(reward_bal);
                     newArr.push(stakingpools[i])
                 }
             } catch (err) {
-                toast.error(err.message)
+                // toast.error(err.message)
     
             }
         }
@@ -205,65 +250,35 @@ export default function Home() {
         setpositions(newArr)
     }
 
-    const checknetwork = (istoast=true) => {
-        if (typeof window !== "undefined") {
-            if (!window.ethereum?.networkVersion) {
-                return;
-            }
-            if (+window.ethereum?.networkVersion !== +CHAIN_ID) {
-                console.log('enters',window.ethereum?.networkVersion , CHAIN_ID)
-                console.log(window.ethereum.networkVersion)
-                console.log( CHAIN_ID)
-                    if (+CHAIN_ID == 56) {
-                        if(istoast){
-                              toast.info("Please switch network to BSC mainet ");
-                        }
-                      
-                    }
-
-                    if(+CHAIN_ID == 97){
-                        if (istoast) {
-                            toast.info("Please switch network to BSC Testnet ");
-                        }
-                        
-                    }
-                return false;
-            }
-
-            return true;
-         }
-    }
-  
+ 
     const connectWall = async () =>{
-        //  if (!checknetwork()) {
-        //     return;
-        //  }
-        disconnectWallet();
-         let wallet =  await connectWallet();
-            if(wallet){
-            setAccount(wallet[0]);
-            toast.success('connected!')
-            }  
-
+        setDisplayModalTrue();
+        console.log('entss')
     }
 
    
 
     const disconnectWallet = async () =>{
         disconnect();
-        setAccount();
+        setWalletAccount('')
+        setProvInstance('')
         localStorage.removeItem("WEB3_CONNECT_CACHED_PROVIDER")
+        localStorage.removeItem('walletConnected')
+        router.reload(window.location.pathname)
     }
 
     const onChange = event => {
-        console.log("onChange called");
-        setWarnAmount(event.target.value);
+        event.target.value = event.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
+        setWarnAmount(+event.target.value);
     };
     
 
-  return (<>
+  return (<> 
+  
       <header>
+     
       <ToastContainer />
+      <ConnectModal showModal={displayModal} />
       {!siteMessage? "" : (<div className='d-flex justify-contents-center align-items-center' style={{display: "flex", background: "orange", padding: "20px"}}><b>{siteMessage}</b></div>)}
           <nav className="navbar navbar-expand-lg  navbar-dark">
               <a  className="navbar-brand" href="#">
@@ -285,7 +300,7 @@ export default function Home() {
               <div className="collapse navbar-collapse" id="navbarNav">
                 <ul className="navbar-nav">
                   <li className="nav-item active">
-                    <a className="nav-link" href="#">Stake <span className="sr-only">(current)</span></a>
+                    <a className="nav-link" href="#">Stake </a>
                   </li>
                   <li className="nav-item">
                     <a className="nav-link" href="#">Portfolio</a>
@@ -301,14 +316,17 @@ export default function Home() {
                   </li>
                 </ul>
                   
-                  <button className="mr-sm-2 mr-lg-0 mr-md-0 connectWallet" onClick={()=>{ !account ? connectWall() :  disconnectWallet()}}>
-                     { !account ? "Connect Wallet" : account.substring(0, 7)}
+                  <button className="mr-sm-2 mr-lg-0 mr-md-0 connectWallet" onClick={()=>{ !walletAccount ? connectWall() : disconnectWallet()}}>
+                     { !walletAccount ? `Connect Wallet` : walletAccount.substring(0, 7)}
                   </button>
+                   
               </div>
   
             </nav>
       </header>
-      <main className="container">
+      <main className="container" style={blurV?{
+        filter: "blur(8px)"        
+      }: {}}>
   
           <section>
               <div className="text-white" style={{marginBottom: "64px"}}>
@@ -320,7 +338,10 @@ export default function Home() {
                   <div className="portfolio_value d-flex flex-wrap  flex-wrap  flex-wrap  justify-content-between">
                       <span className="value_wrapper d-flex flex-wrap  flex-wrap  flex-wrap  align-items-center">
                           <span className="p_value_label">Portfolio Value : &nbsp;</span>
-                          <span className="p_value"> {!userBalance?"0":userBalance} FSN</span>
+                          <span className="p_value"> {!walletAccount? 0 :(!userBalance?(
+                            <div className="spinner-grow" role="status">
+                            </div>
+                          ):userBalance)} FSN</span>
                       </span>
   
                       <button className="btn buy-coin-btn text-white">
@@ -336,8 +357,15 @@ export default function Home() {
                           <span> Total Stakers </span> 
                       </span>
   
-                      <span className="tokenValue">
-                          {!totalStakeHolders? 0: totalStakeHolders * 1}
+                      <span className="tokenValue">{!walletAccount? 0 :( !totalStakeHolders? (
+                            <div className="spinner-grow" role="status">
+                            </div>
+                          ): totalStakeHolders * 1)
+                      
+                      }  
+                    
+                          
+                          
                       </span>
   
                   </span>
@@ -348,7 +376,10 @@ export default function Home() {
                           <span>Total Fusion Staked </span> 
                       </span>
                       <span className="tokenValue">
-                         {!totalStaked? "0": totalStaked * 1}
+                      {!walletAccount? 0 :(!totalStaked?(
+                            <div className="spinner-grow" role="status">
+                            </div>
+                          ): totalStaked * 1)}
                       </span>
                   </span>
   
@@ -479,7 +510,7 @@ export default function Home() {
                           </td>
                           <td>
                               
-                              <button className="stake-btn" data-bs-toggle="modal" data-bs-target="#exampleModal" onClick={()=>{setModalItem(pool)}} > Stake </button>
+                              <button className="stake-btn" data-bs-toggle="modal" data-bs-target="#exampleModal" onClick={()=>{setModalItem(pool); console.log({pool})}} > Stake </button>
                              
                           </td>
                         </tr>
@@ -541,7 +572,7 @@ export default function Home() {
                               marginBottom: "32px"
                               }}>
                                   {/* <span >20,000 <small>($1000)</small></span> */}
-                                  <input type="number" id="amtInput" placeholder={`Min ${inputAmt}`} onChange={onChange} style={{
+                                  <input type="text" id="amtInput" placeholder={`Min ${inputAmt}`} onChange={onChange} style={{
                                     background: "#0E1725",
                                     borderRadius: "8px",
                                     padding: "28.5px",
@@ -592,7 +623,7 @@ export default function Home() {
                                   <button className="btn flex-grow-1 stake-btn" style={{fontWeight: "800", fontSize: "24px"}} onClick={()=>{
                                     stake();
                                   }}>
-                                      Stake
+                                     {!loading? 'Stake': 'Processing...'} 
                                   </button>
                               </div>
                               
@@ -635,7 +666,7 @@ export default function Home() {
                                             <span className="text-light-grey"> Your Stake</span>
                                             <span> 
                                                 <span className="text-white" style={{fonWeight: "700",
-                                                fontSize: "1.5rem"}}>{val?.bal*1} FUSION</span>
+                                                fontSize: "1.5rem"}}>{val?.bal*1} FSN</span>
                                                 {/* <span className="text-light-grey" style={{fontWeight: "400"}}>$9201</span> */}
                                             </span>
                                         </div>
