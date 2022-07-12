@@ -12,7 +12,8 @@ export const TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_ADDRESS;
 const CHAIN_ID = process.env.NEXT_PUBLIC_CHAIN_ID;
 const ENV =  process.env.NEXT_PUBLIC_ENV;
 const INFURA_ID =  process.env.NEXT_PUBLIC_INFURA_ID;
-
+const PROVIDER_URL =  process.env.NEXT_PUBLIC_JSONRPC_PROVIDER;
+const getRevertReason = require('eth-revert-reason')
 
 
 let currentAccount = null;
@@ -24,6 +25,8 @@ export const getProvider = async () => {
       if(ethereum){
         let provider = await detectEthereumProvider();
         return provider;
+      }else{
+        return new Web3(new Web3.providers.HttpProvider(PROVIDER_URL));
       }
    }
 }
@@ -98,7 +101,8 @@ export async function connectToMetaMask() {
       toast.error("You need Metamask to use this Site, Please install MetaMask ☺️, Thank you!");
         return;
     }
-    if( ethereum.networkVersion !== CHAIN_ID){
+
+    if( ethereum.networkVersion && ethereum.networkVersion !== CHAIN_ID ){
       toast.error(`WRONG NETWORK! Please switch to ${ process.env.NEXT_PUBLIC_NETWORK_NAME}`);
       return;
     }
@@ -205,6 +209,8 @@ export const switchNetwork = async () =>{
 export const getContract = async (prov)=> {
   if(!prov){
     prov = await getProvider();
+    console.log('no provider provided')
+    console.log({prov})
   }
   const web3 = new Web3(prov);
   const staking = new web3.eth.Contract(contractABI.abi, CONTRACT_ADDRESS);
@@ -241,6 +247,11 @@ export const getWalletBalance = async (address, prov=null) =>{
   let val = await contract.methods.balanceOf(address).call();
   let balance = convertToEther(val);
   return balance;
+}
+
+export const getReason = async ()=> {
+  let provider = await getProvider();
+  return await getRevertReason('0xb9ca162f2d7f600b8cf87f46d419ddabffd031380d7aed673804de7e06a084cf','Testnet','20944870',provider)
 }
 
 
